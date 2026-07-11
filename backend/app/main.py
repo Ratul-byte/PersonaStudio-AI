@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logger import get_logger
 
+# FIXED: Changed `name` to `__name__` to prevent NameError
 logger = get_logger(__name__)
 
 
@@ -28,7 +29,9 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
+        # FIXED: Changed [""] to ["*"] to allow all HTTP methods (GET, POST, OPTIONS)
         allow_methods=["*"],
+        # FIXED: Changed [""] to ["*"] to allow standard headers
         allow_headers=["*"],
     )
 

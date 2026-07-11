@@ -227,7 +227,7 @@ class SupabaseDatabaseProvider(DatabaseProvider):
         """Retrieves history logs from Supabase, optionally filtering by video_id."""
         logger.info("Listing records from Supabase public.videos tracking system...")
         try:
-            query = self.supabase.table("videos").select("*")
+            query = self.supabase.table("generations").select("*")
             if video_id:
                 query = query.eq("video_id", video_id)
                 

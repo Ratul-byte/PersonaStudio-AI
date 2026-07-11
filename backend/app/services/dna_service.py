@@ -96,14 +96,31 @@ def get_video_transcript_via_groq(video_path_or_id: str, original_filename: str 
         logger.info("Sending audio file to free Groq Whisper-Large-V3 gateway...")
         with open(audio_path, "rb") as f:
             files = {"file": (os.path.basename(audio_path), f, "audio/mpeg")}
-            data = {"model": "whisper-large-v3", "temperature": "0.0"}
+            # Request verbose_json to get segment timestamps
+            data = {
+                "model": "whisper-large-v3", 
+                "temperature": "0.0",
+                "response_format": "verbose_json"
+            }
             response = requests.post(url, headers=headers, files=files, data=data)
         
         if response.status_code != 200:
             logger.error("Groq API error: Status %s - %s", response.status_code, response.text)
             return ""
             
-        return response.json().get("text", "")
+        result = response.json()
+        
+        # If segments are present, format them as: [0.0s - 4.5s] Spoken text here.
+        if "segments" in result:
+            timestamped_transcript = ""
+            for segment in result["segments"]:
+                start = round(segment.get("start", 0.0), 1)
+                end = round(segment.get("end", 0.0), 1)
+                text = segment.get("text", "").strip()
+                timestamped_transcript += f"[{start}s - {end}s] {text}\n"
+            return timestamped_transcript.strip()
+            
+        return result.get("text", "")
 
     except Exception as e:
         logger.error("Error during video transcription via Groq: %s", e)

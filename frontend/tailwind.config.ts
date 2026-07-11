@@ -6,21 +6,21 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0B0E14",
-        surface: "#12161F",
-        "surface-raised": "#181D29",
-        border: "#232938",
-        foreground: "#E8E9ED",
-        muted: "#8B92A5",
+        background: "var(--background)",
+        surface: "var(--surface)",
+        "surface-raised": "var(--surface-raised)",
+        border: "var(--border)",
+        foreground: "var(--foreground)",
+        muted: "var(--muted)",
         primary: {
-          DEFAULT: "#7C5CFC",
-          foreground: "#FFFFFF",
+          DEFAULT: "var(--primary)",
+          foreground: "var(--primary-foreground)",
         },
         accent: {
-          DEFAULT: "#22D3C8",
-          foreground: "#0B0E14",
+          DEFAULT: "var(--accent)",
+          foreground: "var(--accent-foreground)",
         },
-        danger: "#F0596B",
+        danger: "var(--danger)",
       },
       fontFamily: {
         display: ["var(--font-space-grotesk)", "sans-serif"],

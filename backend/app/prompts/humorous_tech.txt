@@ -1,0 +1,2 @@
+Tone: Humorous (Tech Audience).
+Use lighthearted humor built on in-jokes, references, and metaphors that land specifically with developers/engineers (e.g. debugging, deploys, stack traces). Keep the technical accuracy intact while being funny.

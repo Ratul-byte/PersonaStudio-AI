@@ -2,9 +2,10 @@
 
 **One Video. Infinite Content. Every Audience.**
 
-PersonaStudio AI understands a video once — transcribing it, extracting its meaning into a
-reusable **Content DNA** — and transforms that single understanding into content for any
-audience, platform, purpose, and tone, without ever re-analyzing the source video.
+PersonaStudio AI understands a video once — via either audio transcription or direct visual
+analysis — extracting its meaning into a reusable **Content DNA**, and transforms that single
+understanding into content for any audience, platform, purpose, and tone, without ever
+re-analyzing the source video.
 
 Built for the **AMD Developer Hackathon (Unicorn Track)**.
 
@@ -13,6 +14,7 @@ Built for the **AMD Developer Hackathon (Unicorn Track)**.
 ## Table of contents
 
 - [Core principle](#core-principle)
+- [Understanding methods](#understanding-methods)
 - [Architecture](#architecture)
 - [Sequence diagram](#sequence-diagram)
 - [Repository structure](#repository-structure)
@@ -34,7 +36,7 @@ Built for the **AMD Developer Hackathon (Unicorn Track)**.
 Video
   │
   ▼
-Transcribe once (Groq Whisper) + extract understanding once (Fireworks LLM)
+Understand once (Whisper transcript OR Gemma 4 vision — pick one) + extract Content DNA
   │
   ▼
 Save Content DNA (structured JSON, persisted in Supabase)
@@ -45,6 +47,31 @@ Reuse it for every future generation
 
 Never analyze the same video twice. Every `/generate` call reuses the Content DNA produced
 by the one `/analyze` call.
+
+---
+
+## Understanding methods
+
+`POST /analyze` accepts an `understanding_method` field so the same video can be understood
+in one of two ways — chosen once, per video, at analysis time:
+
+| Method | `understanding_method` value | How it works | Requires |
+|--------|-------------------------------|---------------|----------|
+| **Whisper transcript** (default) | `whisper` | Extracts the audio track with `ffmpeg`, transcribes it via Groq's Whisper Large v3, then feeds the timestamped transcript to a Fireworks text LLM. | `GROQ_API_KEY`, `FIREWORKS_API_KEY` |
+| **Gemma 4 vision** | `gemma_vision` | Samples 4 evenly-spaced frames from the video with `ffmpeg` and sends them directly to a vision-capable model via OpenRouter — **no audio transcription happens at all.** | `OPENROUTER_API_KEY` |
+
+Both paths converge on the identical `ContentDNA` schema, so the Transformation Engine and
+every frontend component are completely unaware of which method produced it. The choice is
+surfaced in the Upload page UI (two selectable cards) and carried through to the Dashboard via
+a `?method=` query param, shown there as a small badge.
+
+If Content DNA already exists for a video, `understanding_method` is ignored — a video is only
+ever analyzed once, by whichever method was used the first time. Passing an explicit
+`raw_signal` to `/analyze` also overrides `understanding_method` entirely (skips both paths).
+
+> **Cost note:** the vision path sends several base64-encoded JPEG frames per request, which
+> is meaningfully more expensive per call than a text-only prompt. Worth checking your
+> OpenRouter credit balance before relying on it for a live demo.
 
 ---
 
@@ -60,10 +87,17 @@ Frontend (Next.js)
 Video Processing Service ───▶ Supabase Storage (uploaded video bytes)
        │
        ▼
-Understanding Engine
-   ├─ ffmpeg: extract audio track from the stored video
-   ├─ Groq (Whisper Large v3): transcribe audio → timestamped transcript
-   └─ Fireworks LLM: transcript + metadata → structured Content DNA
+Understanding Engine  (understanding_method picks ONE path per video)
+   │
+   ├─ "whisper" path
+   │    ├─ ffmpeg: extract audio track from the stored video
+   │    ├─ Groq (Whisper Large v3): transcribe audio → timestamped transcript
+   │    └─ Fireworks LLM: transcript + metadata → structured Content DNA
+   │
+   └─ "gemma_vision" path
+        ├─ ffmpeg: sample 4 evenly-spaced frames from the stored video
+        └─ OpenRouter (Gemma 4, vision): frames + metadata → structured Content DNA
+              (no transcription in this path)
        │
        ▼
    Content DNA (persisted as JSONB in Supabase Postgres)
@@ -108,6 +142,11 @@ User        Frontend        FastAPI       DNAService                 Transformat
  │◀──rendered──│                │               │                             │                    │
 ```
 
+> Diagram shows the `whisper` path. When `understanding_method=gemma_vision` is sent instead,
+> the `DNAService` step swaps to: extract frames via `ffmpeg` → send frames + metadata directly
+> to OpenRouter (Gemma 4) → same `ContentDNA` JSON comes back. Everything before and after that
+> step (upload, generate, rendering) is identical regardless of which method was used.
+
 ---
 
 ## Repository structure
@@ -126,13 +165,15 @@ personastudio-ai/
 │       ├── schemas/                    # Pydantic API models (Content DNA, generation, video)
 │       ├── services/
 │       │   ├── video_service.py        # upload orchestration
-│       │   ├── dna_service.py          # Understanding Engine: ffmpeg + Groq + Fireworks
+│       │   ├── dna_service.py          # Understanding Engine: whisper (ffmpeg+Groq+Fireworks) OR gemma_vision (ffmpeg+OpenRouter)
 │       │   ├── transformation_service.py  # Transformation Engine
 │       │   ├── fireworks_service.py    # AIProvider adapter (Fireworks / mock)
 │       │   ├── storage_service.py      # StorageProvider adapter (Supabase Storage)
 │       │   └── database_services.py    # Database adapter (Supabase Postgres / JSON fallback)
 │       ├── database/                   # Database interface + local JSON implementation
 │       ├── prompts/                    # all prompts as .txt files (never hardcoded)
+│       │   ├── understanding.txt       # text-based (whisper transcript) understanding prompt
+│       │   └── understanding_vision.txt   # frames-based (gemma_vision) understanding prompt
 │       └── workers/                    # Celery interface (scaffolded, not yet wired in)
 │   ├── tests/
 │   ├── requirements.txt
@@ -144,8 +185,8 @@ personastudio-ai/
     │   ├── dashboard/[videoId]/page.tsx
     │   ├── history/page.tsx
     │   └── settings/page.tsx
-    ├── components/                     # UploadCard, TimelineViewer, DNAViewer,
-    │   │                                # Persona/Platform/Purpose/ToneSelector,
+    ├── components/                     # UploadCard (incl. understanding-method picker), TimelineViewer,
+    │   │                                # DNAViewer, Persona/Platform/Purpose/ToneSelector,
     │   │                                # GeneratedContentPanel, HistoryPanel, ui/*
     ├── hooks/useVideoDashboard.ts
     ├── services/api.ts                 # single API client used by all pages
@@ -159,7 +200,8 @@ personastudio-ai/
 | Frontend       | Next.js (App Router), React 18, TypeScript, TailwindCSS, Framer Motion, lucide-react |
 | Backend        | FastAPI, Python 3.10+, Pydantic v2, pydantic-settings, Uvicorn        |
 | LLM            | Fireworks AI — model set via `GEMMA_MODEL`, currently pointed at a non-Gemma chat model (see note below) |
-| Transcription  | Groq (Whisper Large v3) — audio extracted from the uploaded video via `ffmpeg` |
+| Transcription  | Groq (Whisper Large v3) — audio extracted from the uploaded video via `ffmpeg`. Used by the `whisper` understanding method. |
+| Vision LLM     | OpenRouter (Gemma 4, vision-capable) — analyzes video frames sampled via `ffmpeg`, no transcription. Used by the `gemma_vision` understanding method. |
 | Storage        | Supabase Storage (bucket configured via `SUPABASE_BUCKET`)             |
 | Database       | Supabase Postgres (`videos` + `generations` tables) — JSON-file fallback available for local-only runs |
 | Async/Queue    | Celery + Redis interface, scaffolded for future use — not currently invoked by any route |
@@ -255,16 +297,21 @@ CORS_ORIGINS=http://localhost:3000        # add your JupyterLab proxy origin too
 AI_PROVIDER=fireworks                     # fireworks | mock (mock needs no API key, useful for offline pipeline testing)
 FIREWORKS_API_KEY=
 FIREWORKS_BASE_URL=https://api.fireworks.ai/inference/v1
-GEMMA_MODEL=accounts/fireworks/models/<your-chosen-model>   # must be a chat-capable model enabled on your Fireworks account — check with GET /v1/models
+FIREWORKS_MODEL=accounts/fireworks/models/<your-chosen-model>   # must be a chat-capable model enabled on your Fireworks account — check with GET /v1/models
 
 # ---- Transcription (Groq) ----
-GROQ_API_KEY=                             # required whenever STORAGE_PROVIDER=supabase; used for Whisper Large v3 transcription
+GROQ_API_KEY=                             # used by the "whisper" understanding method for Whisper Large v3 transcription
+
+# ---- Vision understanding (OpenRouter Gemma 4) ----
+OPENROUTER_API_KEY=                       # used by the "gemma_vision" understanding method
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_VISION_MODEL=google/gemma-4-31b-it   # verify availability at https://openrouter.ai/models
 
 # ---- Storage ----
 STORAGE_PROVIDER=supabase                 # currently the only supported path — see note below
 SUPABASE_URL=
 SUPABASE_KEY=
-SUPABASE_BUCKET=
+SUPABASE_BUCKET=PersonaStudio_AI
 
 # ---- Database ----
 DATABASE_PROVIDER=supabase                # json | supabase
@@ -331,10 +378,26 @@ Interactive docs auto-generate at `/docs` (Swagger) and `/redoc`. Core endpoints
 |--------|-----------------------------|----------------------------------------------------------------------|
 | POST   | `/api/v1/upload`            | Upload a video file to Supabase Storage. Returns `video_id`. Does **not** analyze it. |
 | GET    | `/api/v1/video/{video_id}`  | Return stored metadata for a video.                                 |
-| POST   | `/api/v1/analyze`           | Run (or reuse) the Understanding Engine → transcribe + extract Content DNA. Accepts an optional `raw_signal` to skip auto-transcription. |
+| POST   | `/api/v1/analyze`           | Run (or reuse) the Understanding Engine → extract Content DNA via `whisper` (transcribe) or `gemma_vision` (analyze frames directly). Accepts an optional `raw_signal` to skip both and supply a transcript/description manually. |
 | POST   | `/api/v1/generate`          | Transform existing Content DNA into one piece of content.            |
 | GET    | `/api/v1/history`           | List past generations, optionally filtered by `video_id`.            |
 | GET    | `/health`                   | Health check.                                                        |
+
+`POST /analyze` body — Whisper transcription (default):
+```json
+{
+  "video_id": "vid_abc123",
+  "understanding_method": "whisper"
+}
+```
+
+`POST /analyze` body — Gemma 4 vision, no transcription:
+```json
+{
+  "video_id": "vid_abc123",
+  "understanding_method": "gemma_vision"
+}
+```
 
 `POST /generate` body:
 ```json
@@ -384,15 +447,22 @@ credentials or network access.
 ## Known limitations
 
 - **`ffmpeg` isn't in the Docker image yet** — add `apt-get install -y ffmpeg` to the
-  `Dockerfile` before deploying, or audio transcription will fail silently in production.
+  `Dockerfile` before deploying, or both understanding methods will fail silently in
+  production (audio extraction for `whisper`, frame extraction for `gemma_vision`).
 - **Local storage path is currently unreachable** — `get_storage_provider()` always returns
   the Supabase provider; `STORAGE_PROVIDER=local` has no effect until that's re-enabled.
 - **Transcripts aren't persisted as a queryable field** — `raw_signal` is set on the in-memory
   `VideoRecord` object during analysis but isn't part of the `VideoRecord`/`GenerationRecord`
-  dataclasses or the Supabase `videos` table schema, so it isn't saved for later reuse.
-- **Model availability varies by Fireworks account** — always confirm your `GEMMA_MODEL`
-  value against `GET https://api.fireworks.ai/inference/v1/models` for your account before
-  assuming a given model path is deployed and reachable.
+  dataclasses or the Supabase `videos` table schema, so it isn't saved for later reuse. This
+  only affects the `whisper` path — `gemma_vision` doesn't produce a transcript at all.
+- **Model availability varies by account, for both providers** — always confirm `GEMMA_MODEL`
+  against `GET https://api.fireworks.ai/inference/v1/models` and `OPENROUTER_VISION_MODEL`
+  against `https://openrouter.ai/models` before assuming a given model path is reachable.
+- **`gemma_vision` hasn't been live-tested end-to-end** — code is type/syntax-verified and the
+  request/response shape follows OpenRouter's documented multimodal format, but an actual
+  OpenRouter API call with real credentials hasn't been run yet. Test this before a live demo.
+- **Vision path cost** — sends multiple base64-encoded frames per request, meaningfully pricier
+  per call than the text-only `whisper` path. Check OpenRouter credit balance beforehand.
 - **Celery/Redis are unused** — `REDIS_URL` and `workers/celery_app.py` are scaffolding only;
   `/analyze` and `/generate` both still run synchronously in-request.
 
@@ -405,8 +475,9 @@ Not implemented in the MVP, but the architecture doesn't require rework to add t
 - **Auth / organizations / projects / API keys / billing / team workspaces** — add a
   `User`/`Organization` model and a FastAPI auth dependency; every route already receives
   services via `Depends(...)`.
-- **Multiple LLM providers** — implement a new `AIProvider` subclass in
-  `fireworks_service.py` and add a branch to `get_ai_provider()`.
+- **More LLM providers / understanding methods** — two exist today (Fireworks text via
+  `whisper`, OpenRouter vision via `gemma_vision`); adding a third follows the same pattern —
+  a new branch in `DNAService.analyze()` plus a dedicated prompt file.
 - **Multilingual support** — pass a `language` field through `GenerationRequest` and prompt
   templates.
 - **Async processing at scale** — implement the placeholder task in

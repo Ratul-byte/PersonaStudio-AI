@@ -25,7 +25,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./backend  # <--- CHANGE THIS LINE
+          file: ./backend/Dockerfile # <--- ADD THIS LINE JUST IN CASE
           push: true
-          # REPLACE "yourusername" BELOW WITH YOUR GITHUB USERNAME (ALL LOWERCASE)
+          # Make sure this still has your actual username!
           tags: ghcr.io/ratul-byte/persona-studio:latest

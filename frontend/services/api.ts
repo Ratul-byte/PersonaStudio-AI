@@ -1,4 +1,13 @@
-import type { ContentDNA, GenerationResult, Persona, Platform, Purpose, Tone, VideoMetadata } from "@/types";
+import type {
+  ContentDNA,
+  GenerationResult,
+  Persona,
+  Platform,
+  Purpose,
+  Tone,
+  UnderstandingMethod,
+  VideoMetadata,
+} from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
@@ -47,11 +56,24 @@ export const api = {
   /** Fetch metadata for a previously uploaded video. */
   getVideo: (videoId: string) => request<VideoMetadata>(`/video/${videoId}`),
 
-  /** Run (or reuse) the Understanding Engine to produce Content DNA. */
-  analyzeVideo: (videoId: string, rawSignal?: string) =>
+  /**
+   * Run (or reuse) the Understanding Engine to produce Content DNA.
+   * `understandingMethod` picks between "whisper" (transcribe audio, then
+   * analyze the transcript) and "gemma_vision" (analyze sampled frames
+   * directly, no transcription). Ignored if `rawSignal` is provided.
+   */
+  analyzeVideo: (
+    videoId: string,
+    rawSignal?: string,
+    understandingMethod: UnderstandingMethod = "whisper"
+  ) =>
     request<ContentDNA>("/analyze", {
       method: "POST",
-      body: JSON.stringify({ video_id: videoId, raw_signal: rawSignal }),
+      body: JSON.stringify({
+        video_id: videoId,
+        raw_signal: rawSignal,
+        understanding_method: understandingMethod,
+      }),
     }),
 
   /** Transform existing Content DNA into one piece of audience/platform-specific content. */

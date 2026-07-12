@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     fireworks_base_url: str = "https://api.fireworks.ai/inference/v1"
     gemma_model: str = "accounts/fireworks/models/gemma2-9b-it"
 
+    # Transcription (Groq Whisper) — used by the "whisper" understanding method
+    groq_api_key: str = ""
+
+    # Vision understanding (OpenRouter Gemma 4) — used by the "gemma_vision"
+    # understanding method, analyzing sampled frames with no transcription.
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_vision_model: str = "google/gemma-4-31b-it"
+
     # Storage
     storage_provider: Literal["local", "supabase"] = "local"
     local_storage_path: str = "./storage"

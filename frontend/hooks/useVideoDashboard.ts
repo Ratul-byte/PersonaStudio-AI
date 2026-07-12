@@ -2,7 +2,16 @@
 
 import * as React from "react";
 import { api, ApiError } from "@/services/api";
-import type { ContentDNA, GenerationResult, Persona, Platform, Purpose, Tone, VideoMetadata } from "@/types";
+import type {
+  ContentDNA,
+  GenerationResult,
+  Persona,
+  Platform,
+  Purpose,
+  Tone,
+  UnderstandingMethod,
+  VideoMetadata,
+} from "@/types";
 
 interface UseVideoDashboardResult {
   video: VideoMetadata | null;
@@ -15,8 +24,15 @@ interface UseVideoDashboardResult {
   generating: boolean;
 }
 
-/** Loads a video, ensures it has Content DNA (analyzing once if needed), and exposes generation actions. */
-export function useVideoDashboard(videoId: string): UseVideoDashboardResult {
+/**
+ * Loads a video, ensures it has Content DNA (analyzing once if needed using
+ * the given understandingMethod — ignored if DNA already exists, since a
+ * video is only ever analyzed once), and exposes generation actions.
+ */
+export function useVideoDashboard(
+  videoId: string,
+  understandingMethod: UnderstandingMethod = "whisper"
+): UseVideoDashboardResult {
   const [video, setVideo] = React.useState<VideoMetadata | null>(null);
   const [dna, setDna] = React.useState<ContentDNA | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -36,16 +52,11 @@ export function useVideoDashboard(videoId: string): UseVideoDashboardResult {
         if (cancelled) return;
         setVideo(meta);
 
-        if (meta.status === "analyzed") {
-          // Content DNA already exists — pull it via analyze (idempotent reuse).
-          setAnalyzing(true);
-          const existingDna = await api.analyzeVideo(videoId);
-          if (!cancelled) setDna(existingDna);
-        } else {
-          setAnalyzing(true);
-          const newDna = await api.analyzeVideo(videoId);
-          if (!cancelled) setDna(newDna);
-        }
+        // If Content DNA already exists, understandingMethod is ignored
+        // server-side and the existing DNA is simply returned.
+        setAnalyzing(true);
+        const dnaResult = await api.analyzeVideo(videoId, undefined, understandingMethod);
+        if (!cancelled) setDna(dnaResult);
 
         const history = await api.getHistory(videoId);
         if (!cancelled) setGenerations(history);
@@ -65,7 +76,7 @@ export function useVideoDashboard(videoId: string): UseVideoDashboardResult {
     return () => {
       cancelled = true;
     };
-  }, [videoId]);
+  }, [videoId, understandingMethod]);
 
   const generate = React.useCallback(
     async (params: { persona: Persona; platform: Platform; purpose: Purpose; tone: Tone }) => {

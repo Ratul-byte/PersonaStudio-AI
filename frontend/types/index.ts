@@ -1,3 +1,5 @@
+export type UnderstandingMethod = "whisper" | "gemma_vision";
+
 export type Persona =
   | "developer"
   | "researcher"

@@ -13,7 +13,11 @@ router = APIRouter(tags=["analyze"])
 
 class AnalyzeRequest(BaseModel):
     video_id: str
-    raw_signal: str | None = None  # optional transcript / frame captions if available
+    raw_signal: str | None = None  # optional transcript / frame captions if already known
+    # "whisper" (default): transcribe audio via Groq, then analyze the transcript.
+    # "gemma_vision": sample video frames and analyze them directly — no transcription.
+    # Ignored if raw_signal is provided.
+    understanding_method: str = "whisper"
 
 
 @router.post("/analyze", response_model=ContentDNA)
@@ -28,5 +32,9 @@ async def analyze_video(
     return the already-persisted Content DNA instead of re-analyzing.
     """
     video = await video_service.get_video(payload.video_id)
-    dna = await dna_service.analyze(video, raw_signal=payload.raw_signal)
+    dna = await dna_service.analyze(
+        video,
+        raw_signal=payload.raw_signal,
+        understanding_method=payload.understanding_method,
+    )
     return dna

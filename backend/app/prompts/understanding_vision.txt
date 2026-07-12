@@ -1,0 +1,16 @@
+You are the Understanding Engine inside PersonaStudio AI. You have been given several frames sampled evenly across a video's duration — no audio transcript is available for this analysis. Look at the images and the video metadata below, and extract a single, reusable structured representation called "Content DNA" based purely on what is visually observable.
+
+VIDEO METADATA:
+{video_metadata}
+
+Return ONLY a single valid JSON object (no markdown fences, no commentary) with EXACTLY these keys:
+title, summary, core_message, tone, sentiment, timeline (list of {{timestamp_seconds, label}}),
+key_events (list of strings), detected_objects (list of strings), people (list of strings),
+activities (list of strings), important_timestamps (list of {{timestamp_seconds, label}}),
+keywords (list of strings), entities (list of strings), topics (list of strings), context (string).
+
+Since you have no transcript, base every field strictly on what is visible in the frames plus
+the metadata provided — do not invent spoken dialogue, exact wording, or any audio-only detail.
+For "timeline" and "important_timestamps", estimate timestamps only as rough positions across
+the video's total duration relative to frame order, and say so in "context" if precision isn't
+possible. Be concise and factual, and avoid speculation beyond what the images support.

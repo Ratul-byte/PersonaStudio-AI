@@ -369,7 +369,7 @@ class DNAService:
         return self._parse_dna_json(raw_output, video.video_id)
 
     def _parse_dna_json(self, raw_output: str, video_id: str) -> dict:
-        """Parse the model's JSON output, falling back to a safe skeleton on failure."""
+        """Parse the model's JSON output and normalize the timeline structure."""
         cleaned = raw_output.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.strip("`")
@@ -379,6 +379,36 @@ class DNAService:
         try:
             parsed = json.loads(cleaned)
             parsed["video_id"] = video_id
+            
+            # NORMALIZATION LOGIC FOR TIMELINE
+            normalized_timeline = []
+            
+            # Support both `timeline` and `important_timestamps` in case the LLM varies
+            raw_timeline = parsed.get("timeline") or parsed.get("important_timestamps") or []
+            
+            if isinstance(raw_timeline, list):
+                for event in raw_timeline:
+                    if not isinstance(event, dict):
+                        continue
+                        
+                    # Catch all typical LLM timestamp outputs and cast to float
+                    timestamp_val = event.get("timestamp_seconds") or event.get("timestamp") or event.get("start") or event.get("time") or 0.0
+                    try:
+                        timestamp_val = float(timestamp_val)
+                    except (ValueError, TypeError):
+                        timestamp_val = 0.0
+                        
+                    # Catch all typical LLM text outputs and force into 'label'
+                    label_val = event.get("label") or event.get("description") or event.get("event") or event.get("text") or "Notable Event"
+                    
+                    normalized_timeline.append({
+                        "timestamp_seconds": timestamp_val,
+                        "label": str(label_val)
+                    })
+            
+            # Explicitly overwrite with the normalized version
+            parsed["timeline"] = normalized_timeline
+            
             return parsed
         except (json.JSONDecodeError, TypeError) as exc:
             logger.warning("Could not parse Content DNA JSON, using fallback skeleton: %s", exc)

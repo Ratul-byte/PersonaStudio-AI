@@ -199,7 +199,7 @@ personastudio-ai/
 |----------------|--------------------------------------------------------------------------|
 | Frontend       | Next.js (App Router), React 18, TypeScript, TailwindCSS, Framer Motion, lucide-react |
 | Backend        | FastAPI, Python 3.10+, Pydantic v2, pydantic-settings, Uvicorn        |
-| LLM            | Fireworks AI — model set via `GEMMA_MODEL`, currently pointed at a non-Gemma chat model (see note below) |
+| LLM            | Fireworks AI — model set via `FIREWORKS_MODEL`, currently using serverless MiniMax M3 model |
 | Transcription  | Groq (Whisper Large v3) — audio extracted from the uploaded video via `ffmpeg`. Used by the `whisper` understanding method. |
 | Vision LLM     | OpenRouter (Gemma 4, vision-capable) — analyzes video frames sampled via `ffmpeg`, no transcription. Used by the `gemma_vision` understanding method. |
 | Storage        | Supabase Storage (bucket configured via `SUPABASE_BUCKET`)             |

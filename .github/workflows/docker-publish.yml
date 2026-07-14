@@ -1,0 +1,32 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches: [ "main", "master" ] # Runs every time you push to main/master
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # Gives GitHub permission to upload the image
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} # GitHub provides this automatically!
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend  # <--- CHANGE THIS LINE
+          file: ./backend/Dockerfile # <--- ADD THIS LINE JUST IN CASE
+          push: true
+          # Make sure this still has your actual username!
+          tags: ghcr.io/ratul-byte/persona-studio:latest

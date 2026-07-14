@@ -7,7 +7,7 @@ analysis — extracting its meaning into a reusable **Content DNA**, and transfo
 understanding into content for any audience, platform, purpose, and tone, without ever
 re-analyzing the source video.
 
-Built for the **AMD Developer Hackathon (Unicorn Track)**.
+Built for the **AMD Developer Hackathon (Unicorn + Video Captioning Track)**.
 
 ---
 

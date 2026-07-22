@@ -9,6 +9,9 @@ re-analyzing the source video.
 
 Built for the **AMD Developer Hackathon (Unicorn + Video Captioning Track)**.
 
+* **GitHub Container Registry:** [PersonaStudio-AI Container](https://github.com/Ratul-byte/PersonaStudio-AI/pkgs/container/persona-studio)
+* **Lablab.ai Submission:** [PersonaStudio AI Project Page](https://lablab.ai/ai-hackathons/amd-developer-hackathon-act-ii/trionda/persona-studio-ai)
+
 ---
 
 ## Table of contents
